@@ -1,0 +1,52 @@
+#!groovy
+properties([disableConcurrentBuilds()])
+
+pipeline {
+    agent {
+        label 'master'
+    }
+    triggers { pollSCM('* * * * *') }
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '10', artifactNumToKeepStr: '10'))
+        timestamps()
+    }
+    parameters {
+        choice(choices: "master\ndevelop", description: 'BRANCH', name: 'BRANCH')
+        string(defaultValue: "alianinho", description: 'Image name name', name: 'IMAGE')
+    }
+
+    stages {
+        stage("Clone repo") {
+            steps {
+                git credentialsId: '05e830ed-8f0b-4119-84ef-1667153f0bc5', url: 'https://github.com/alianinhoaws/Jenkins.git'
+                println "Pulling from branch ${params.BRANCH}"
+            }
+        }
+        stage("docker login") {
+            steps {
+                echo " docker login "
+                withCredentials([usernamePassword(credentialsId: 'docker', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
+                    sh """
+                    echo "docker login"
+                    """
+                }
+            }
+        }
+        stage("create docker image") {
+            steps {
+                echo "start building image"
+                dir ('.') {
+                    sh 'docker build -t ${params.IMAGE}/student:latest . '
+                }
+            }
+        }
+        stage("docker push") {
+            steps {
+                echo "pushing image"
+                sh '''
+                docker push ${params.IMAGE}/student:latest
+                '''
+            }
+        }
+    }
+}
